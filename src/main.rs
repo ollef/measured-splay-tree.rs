@@ -1,7 +1,6 @@
 use num::Zero;
 use std::clone::Clone;
 use std::ops::Add;
-use std::rc::Rc;
 
 trait Measured<M> {
     fn measure(&self) -> M;
@@ -13,10 +12,16 @@ impl Measured<usize> for String {
     }
 }
 
-#[derive(Clone)]
 enum SplayTree<M, T> {
     Leaf,
-    Fork(Rc<SplayTree<M, T>>, T, Rc<SplayTree<M, T>>, M),
+    Fork(Box<SplayTreeFork<M, T>>),
+}
+
+struct SplayTreeFork<M, T> {
+    left: SplayTree<M, T>,
+    element: T,
+    right: SplayTree<M, T>,
+    measure: M,
 }
 
 use SplayTree::*;
@@ -28,71 +33,89 @@ where
     fn measure(&self) -> M {
         match self {
             Leaf => M::zero(),
-            Fork(_, _, _, m) => m.clone(),
+            Fork(fork) => (*fork).measure.clone(),
         }
     }
 }
 
-fn fork<M, T>(l: &Rc<SplayTree<M, T>>, t: &T, r: &Rc<SplayTree<M, T>>) -> Rc<SplayTree<M, T>>
-where
-    T: Measured<M> + Clone,
-    M: Clone + Zero,
-{
-    let m = (*l).measure() + t.measure() + (*r).measure();
-    Rc::new(Fork(l.clone(), (*t).clone(), r.clone(), m))
-}
-
 enum SplitResult<M, T> {
-    Outside,
-    Inside(SplayTree<M, T>, T, SplayTree<M, T>),
+    NonMonotonic(SplayTree<M, T>, SplayTree<M, T>),
+    LeftOf(SplayTree<M, T>),
+    RightOf(SplayTree<M, T>),
+    Inside(SplayTreeFork<M, T>),
 }
 
 impl<M, T> SplayTree<M, T>
 where
-    T: Measured<M> + Clone,
+    T: Measured<M>,
     M: Clone + Zero,
 {
+    fn fork_measure(l: SplayTree<M, T>, t: T, r: SplayTree<M, T>, m: M) -> SplayTree<M, T> {
+        Fork(Box::new(SplayTreeFork {
+            left: l,
+            element: t,
+            right: r,
+            measure: m,
+        }))
+    }
+    fn fork(l: SplayTree<M, T>, t: T, r: SplayTree<M, T>) -> SplayTree<M, T> {
+        let m = l.measure() + t.measure() + r.measure();
+        SplayTree::fork_measure(l, t, r, m)
+    }
+
     fn is_empty(&self) -> bool {
         match self {
             Leaf => true,
-            Fork(_, _, _, _) => false,
+            Fork(_) => false,
         }
     }
 
     fn singleton(t: T) -> SplayTree<M, T> {
         let m = t.measure();
-        Fork(Rc::new(Leaf), t, Rc::new(Leaf), m)
+        SplayTree::fork_measure(Leaf, t, Leaf, m)
     }
 
     fn uncons(self) -> Option<(T, SplayTree<M, T>)> {
         match self {
             Leaf => Option::None,
-            Fork(mut l, mut a, mut r, _) => loop {
-                match &*l {
-                    Leaf => break Option::Some((a.clone(), (*r).clone())),
-                    Fork(l2, a2, m, _) => {
-                        r = fork(m, &a, &r);
-                        a = a2.clone();
-                        l = l2.clone();
+            Fork(fork_box) => {
+                let mut fork = *fork_box;
+                loop {
+                    match fork.left {
+                        Leaf => break Option::Some((fork.element, fork.right)),
+                        Fork(left_fork) => {
+                            fork = SplayTreeFork {
+                                left: left_fork.left,
+                                element: left_fork.element,
+                                right: SplayTree::fork(left_fork.right, fork.element, fork.right),
+                                measure: fork.measure,
+                            };
+                        }
                     }
                 }
-            },
+            }
         }
     }
 
     fn unsnoc(self) -> Option<(SplayTree<M, T>, T)> {
         match self {
             Leaf => Option::None,
-            Fork(mut l, mut a, mut r, _) => loop {
-                match &*r {
-                    Leaf => break Option::Some(((*l).clone(), a.clone())),
-                    Fork(m, a2, r2, _) => {
-                        l = fork(&l, &a, m);
-                        a = a2.clone();
-                        r = r2.clone();
+            Fork(fork_box) => {
+                let mut fork = *fork_box;
+                loop {
+                    match fork.right {
+                        Leaf => break Option::Some((fork.left, fork.element)),
+                        Fork(right_fork) => {
+                            fork = SplayTreeFork {
+                                left: SplayTree::fork(fork.left, fork.element, right_fork.left),
+                                element: right_fork.element,
+                                right: right_fork.right,
+                                measure: fork.measure,
+                            }
+                        }
                     }
                 }
-            },
+            }
         }
     }
 
@@ -106,21 +129,43 @@ where
         let mut right = Leaf;
         loop {
             match tree {
-                Leaf => break SplitResult::Outside,
-                Fork(l, a, r, _) => {
-                    let vl = v.clone() + l.measure();
+                Leaf => {
+                    break {
+                        match (left, right) {
+                            (Leaf, Leaf) => {
+                                if pred(&v) {
+                                    SplitResult::RightOf(Leaf)
+                                } else {
+                                    SplitResult::LeftOf(Leaf)
+                                }
+                            }
+                            (Leaf, right) => SplitResult::LeftOf(right),
+                            (left, Leaf) => SplitResult::RightOf(left),
+                            (left, right) => SplitResult::NonMonotonic(left, right),
+                        }
+                    };
+                }
+
+                Fork(fork) => {
+                    let vl = v.clone() + fork.left.measure();
                     if pred(&vl) {
-                        tree = (*l).clone();
-                        right = SplayTree::<M, T>::singleton(a) + (*r).clone() + right;
+                        tree = fork.left;
+                        right = SplayTree::singleton(fork.element) + fork.right + right;
                         continue;
                     }
-                    let vla = vl.clone() + a.measure();
+                    let vla = vl.clone() + fork.element.measure();
                     if pred(&vla) {
-                        break SplitResult::Inside(left + (*l).clone(), a, (*r).clone() + right);
+                        let measure = left.measure() + fork.measure + right.measure();
+                        break SplitResult::Inside(SplayTreeFork {
+                            left: left + fork.left,
+                            element: fork.element,
+                            right: fork.right + right,
+                            measure: measure,
+                        });
                     }
                     v = vla;
-                    tree = (*r).clone();
-                    left = left + (*l).clone() + SplayTree::<M, T>::singleton(a);
+                    tree = fork.right;
+                    left = left + fork.left + SplayTree::singleton(fork.element);
                 }
             }
         }
@@ -130,43 +175,73 @@ where
 impl<M, T> Add for SplayTree<M, T>
 where
     M: Clone + Zero + Add,
-    T: Measured<M> + Clone,
+    T: Measured<M>,
 {
     type Output = SplayTree<M, T>;
     fn add(self, rhs: SplayTree<M, T>) -> SplayTree<M, T> {
         match (self, rhs) {
             (Leaf, rhs) => rhs,
             (lhs, Leaf) => lhs,
-            (Fork(mut l1, mut a1, mut r1, mut lar1), Fork(mut l2, mut a2, mut r2, mut lar2)) => {
+            (Fork(left_fork_box), Fork(right_fork_box)) => {
+                let mut left_fork = *left_fork_box;
+                let mut right_fork = *right_fork_box;
                 loop {
-                    match (&*r1, &*l2) {
-                        (Leaf, _) => {
-                            break Fork(
-                                l1,
-                                a1,
-                                Rc::new(Fork(l2, a2, r2, lar2.clone())),
-                                lar1 + lar2,
+                    match (left_fork, right_fork) {
+                        (
+                            SplayTreeFork {
+                                left: left_fork_left,
+                                element: left_fork_element,
+                                right: Leaf,
+                                measure: _,
+                            },
+                            right_fork,
+                        ) => {
+                            let measure = left_fork.measure + right_fork.measure.clone();
+                            break SplayTree::fork_measure(
+                                left_fork_left,
+                                left_fork_element,
+                                Fork(Box::new(right_fork)),
+                                measure,
                             );
                         }
-
-                        (_, Leaf) => {
-                            let r1_measure = r1.measure();
-                            break Fork(
-                                l1,
-                                a1,
-                                Rc::new(Fork(r1.clone(), a2, r2, r1_measure + lar2.clone())),
-                                lar1 + lar2,
+                        (
+                            left_fork,
+                            SplayTreeFork {
+                                left: Leaf,
+                                element: right_fork_element,
+                                right: right_fork_right,
+                                measure: _,
+                            },
+                        ) => {
+                            let measure = left_fork.measure.clone() + right_fork.measure;
+                            break SplayTree::fork_measure(
+                                Fork(Box::new(left_fork)),
+                                right_fork_element,
+                                right_fork_right,
+                                measure,
                             );
                         }
-                        (Fork(lr1, ar1, rr1, _), Fork(ll2, al2, rl2, _)) => {
-                            l1 = fork(&l1, &a1, &lr1);
-                            a1 = ar1.clone();
-                            r1 = rr1.clone();
-                            lar1 = l1.measure() + a1.measure() + r1.measure();
-                            r2 = fork(&rl2, &a2, &r2);
-                            a2 = al2.clone();
-                            l2 = ll2.clone();
-                            lar2 = l2.measure() + a2.measure() + r2.measure();
+                        (Fork(mid_left_fork), Fork(mid_right_fork)) => {
+                            left_fork = SplayTreeFork {
+                                left: SplayTree::fork(
+                                    left_fork.left,
+                                    left_fork.element,
+                                    mid_left_fork.left,
+                                ),
+                                element: mid_left_fork.element,
+                                right: mid_left_fork.right,
+                                measure: left_fork.measure,
+                            };
+                            right_fork = SplayTreeFork {
+                                left: mid_right_fork.left,
+                                element: mid_right_fork.element,
+                                right: SplayTree::fork(
+                                    mid_right_fork.right,
+                                    right_fork.element,
+                                    right_fork.right,
+                                ),
+                                measure: right_fork.measure,
+                            }
                         }
                     }
                 }
@@ -179,7 +254,7 @@ type Rope = SplayTree<usize, String>;
 
 fn main() {
     let r = Rope::singleton("Hello".to_string()) + Rope::singleton(", world!!".to_string());
-    println!("{}", r.clone().measure());
+    println!("{}", r.measure());
     match r.uncons() {
         Option::None => println!("None"),
         Option::Some((s, r)) => println!("Some {} {}", s, r.measure()),
