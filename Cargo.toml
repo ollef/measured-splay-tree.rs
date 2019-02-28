@@ -1,0 +1,8 @@
+[package]
+name = "measured-splay-tree"
+version = "0.1.0"
+authors = ["Olle Fredriksson <fredriksson.olle@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+num = "0.2.0"
