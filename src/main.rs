@@ -6,17 +6,13 @@ trait Measured<M> {
     fn measure(&self) -> M;
 }
 
-impl Measured<usize> for String {
-    fn measure(&self) -> usize {
-        self.len()
-    }
-}
-
+#[derive(Debug)]
 enum SplayTree<M, T> {
     Leaf,
     Fork(Box<SplayTreeFork<M, T>>),
 }
 
+#[derive(Debug)]
 struct SplayTreeFork<M, T> {
     left: SplayTree<M, T>,
     element: T,
@@ -38,6 +34,7 @@ where
     }
 }
 
+#[derive(Debug)]
 enum SplitResult<M, T> {
     NonMonotonic(SplayTree<M, T>, SplayTree<M, T>),
     LeftOf(SplayTree<M, T>),
@@ -70,8 +67,12 @@ where
         }
     }
 
-    fn singleton(t: T) -> SplayTree<M, T> {
+    fn from(t: T) -> SplayTree<M, T> {
         let m = t.measure();
+        SplayTree::fork_measure(Leaf, t, Leaf, m)
+    }
+
+    fn from_measure(t: T, m: M) -> SplayTree<M, T> {
         SplayTree::fork_measure(Leaf, t, Leaf, m)
     }
 
@@ -150,7 +151,7 @@ where
                     let vl = v.clone() + fork.left.measure();
                     if pred(&vl) {
                         tree = fork.left;
-                        right = SplayTree::singleton(fork.element) + fork.right + right;
+                        right = SplayTree::from(fork.element) + fork.right + right;
                         continue;
                     }
                     let vla = vl.clone() + fork.element.measure();
@@ -165,7 +166,7 @@ where
                     }
                     v = vla;
                     tree = fork.right;
-                    left = left + fork.left + SplayTree::singleton(fork.element);
+                    left = left + fork.left + SplayTree::from(fork.element);
                 }
             }
         }
@@ -244,13 +245,152 @@ where
     }
 }
 
-type Rope = SplayTree<usize, String>;
+//-----------------------------------------------------------------------------
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+struct StringMeasure {
+    len: usize,
+    char_count: usize,
+    newline_count: usize,
+}
+
+impl StringMeasure {
+    fn from(s: &MeasuredString) -> StringMeasure {
+        StringMeasure {
+            len: s.string.len(),
+            char_count: s.char_count,
+            newline_count: s.newline_count,
+        }
+    }
+}
+
+impl Add for &StringMeasure {
+    type Output = StringMeasure;
+
+    fn add(self, rhs: &StringMeasure) -> StringMeasure {
+        StringMeasure {
+            len: self.len + rhs.len,
+            char_count: self.char_count + rhs.char_count,
+            newline_count: self.newline_count + rhs.newline_count,
+        }
+    }
+}
+impl Add for StringMeasure {
+    type Output = StringMeasure;
+
+    fn add(self, rhs: StringMeasure) -> StringMeasure {
+        &self + &rhs
+    }
+}
+
+impl Zero for StringMeasure {
+    fn is_zero(&self) -> bool {
+        self == &StringMeasure::zero()
+    }
+
+    fn zero() -> StringMeasure {
+        StringMeasure {
+            len: 0,
+            char_count: 0,
+            newline_count: 0,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+struct MeasuredString {
+    string: String,
+    char_count: usize,
+    newline_count: usize,
+}
+
+impl MeasuredString {
+    fn from(s: String) -> MeasuredString {
+        let char_count = s.chars().count();
+        let newline_count = s.match_indices('\n').count();
+        MeasuredString {
+            string: s,
+            char_count: char_count,
+            newline_count: newline_count,
+        }
+    }
+}
+
+impl Measured<StringMeasure> for MeasuredString {
+    fn measure(&self) -> StringMeasure {
+        StringMeasure::from(self)
+    }
+}
+
+impl Add for &MeasuredString {
+    type Output = MeasuredString;
+
+    fn add(self, rhs: &MeasuredString) -> MeasuredString {
+        (*self).clone() + (*rhs).clone()
+    }
+}
+
+impl Add for MeasuredString {
+    type Output = MeasuredString;
+
+    fn add(self, rhs: MeasuredString) -> MeasuredString {
+        let char_count = self.char_count + rhs.char_count;
+        let newline_count = self.newline_count + rhs.newline_count;
+        MeasuredString {
+            string: self.string + &rhs.string,
+            char_count: char_count,
+            newline_count: newline_count,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Rope(SplayTree<StringMeasure, MeasuredString>);
+const CHUNK_SIZE: usize = 4096;
+
+impl Rope {
+    fn new() -> Rope {
+        Rope(Leaf)
+    }
+
+    fn from(s: String) -> Rope {
+        if s.is_empty() {
+            Rope(Leaf)
+        } else {
+            Rope(SplayTree::from(MeasuredString::from(s)))
+        }
+    }
+
+    fn inner(self) -> SplayTree<StringMeasure, MeasuredString> {
+        match self {
+            Rope(tree) => tree,
+        }
+    }
+}
+
+impl Add for Rope {
+    type Output = Rope;
+    fn add(self, rhs: Rope) -> Rope {
+        match (self.inner().unsnoc(), rhs.inner().uncons()) {
+            (Option::None, Option::None) => Rope::new(),
+            (Option::Some((left, left_str)), Option::None) => {
+                Rope(left + SplayTree::from(left_str))
+            }
+            (Option::None, Option::Some((right_str, right))) => {
+                Rope(SplayTree::from(right_str) + right)
+            }
+            (Option::Some((left, left_str)), Option::Some((right_str, right))) => {
+                if left_str.string.len() + right_str.string.len() <= CHUNK_SIZE {
+                    Rope(left + SplayTree::from(left_str + right_str) + right)
+                } else {
+                    Rope(left + (SplayTree::from(left_str) + SplayTree::from(right_str)) + right)
+                }
+            }
+        }
+    }
+}
 
 fn main() {
-    let r = Rope::singleton("Hello".to_string()) + Rope::singleton(", world!!".to_string());
-    println!("{}", r.measure());
-    match r.uncons() {
-        Option::None => println!("None"),
-        Option::Some((s, r)) => println!("Some {} {}", s, r.measure()),
-    }
+    let r = Rope::from("Hello".to_string()) + Rope::from(", world!!".to_string());
+    println!("{:?}", r);
 }
