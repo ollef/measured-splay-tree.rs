@@ -186,38 +186,32 @@ where
                 let mut left_fork = *left_fork_box;
                 let mut right_fork = *right_fork_box;
                 loop {
-                    match (left_fork, right_fork) {
-                        (
-                            SplayTreeFork {
-                                left: left_fork_left,
-                                element: left_fork_element,
-                                right: Leaf,
-                                measure: _,
-                            },
-                            right_fork,
-                        ) => {
+                    match (left_fork.right, right_fork.left) {
+                        (Leaf, right_fork_left) => {
                             let measure = left_fork.measure + right_fork.measure.clone();
                             break SplayTree::fork_measure(
-                                left_fork_left,
-                                left_fork_element,
-                                Fork(Box::new(right_fork)),
+                                left_fork.left,
+                                left_fork.element,
+                                SplayTree::fork_measure(
+                                    right_fork_left,
+                                    right_fork.element,
+                                    right_fork.right,
+                                    right_fork.measure,
+                                ),
                                 measure,
                             );
                         }
-                        (
-                            left_fork,
-                            SplayTreeFork {
-                                left: Leaf,
-                                element: right_fork_element,
-                                right: right_fork_right,
-                                measure: _,
-                            },
-                        ) => {
+                        (left_fork_right, Leaf) => {
                             let measure = left_fork.measure.clone() + right_fork.measure;
                             break SplayTree::fork_measure(
-                                Fork(Box::new(left_fork)),
-                                right_fork_element,
-                                right_fork_right,
+                                SplayTree::fork_measure(
+                                    left_fork.left,
+                                    left_fork.element,
+                                    left_fork_right,
+                                    left_fork.measure,
+                                ),
+                                right_fork.element,
+                                right_fork.right,
                                 measure,
                             );
                         }
