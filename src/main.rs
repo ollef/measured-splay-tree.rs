@@ -107,10 +107,6 @@ where
         SplayTree::fork_measure(Leaf, t, Leaf, m)
     }
 
-    fn from_measure(t: T, m: M) -> SplayTree<M, T> {
-        SplayTree::fork_measure(Leaf, t, Leaf, m)
-    }
-
     fn uncons(self) -> Option<(T, SplayTree<M, T>)> {
         match self {
             Leaf => Option::None,
