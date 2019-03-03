@@ -22,10 +22,7 @@ struct SplayTreeFork<M, T> {
 
 use SplayTree::*;
 
-impl<M, T> Measured<M> for SplayTree<M, T>
-where
-    M: Clone + Zero,
-{
+impl<M: Clone + Zero, T> Measured<M> for SplayTree<M, T> {
     fn measure(&self) -> M {
         match self {
             Leaf => M::zero(),
@@ -77,11 +74,7 @@ impl<'a, M, T> From<&'a SplayTree<M, T>> for SplayTreeIterator<'a, M, T> {
     }
 }
 
-impl<M, T> SplayTree<M, T>
-where
-    T: Measured<M>,
-    M: Clone + Zero,
-{
+impl<M: Clone + Zero, T: Measured<M>> SplayTree<M, T> {
     fn fork_measure(l: SplayTree<M, T>, t: T, r: SplayTree<M, T>, m: M) -> SplayTree<M, T> {
         Fork(Box::new(SplayTreeFork {
             left: l,
@@ -146,10 +139,7 @@ where
         }
     }
 
-    fn split<F>(self, pred: F) -> SplitResult<M, T>
-    where
-        F: Fn(&M) -> bool,
-    {
+    fn split<F: Fn(&M) -> bool>(self, pred: F) -> SplitResult<M, T> {
         let mut v = M::zero();
         let mut left = Leaf;
         let mut tree = self;
@@ -203,22 +193,14 @@ where
     }
 }
 
-impl<M, T> From<T> for SplayTree<M, T>
-where
-    T: Measured<M>,
-    M: Clone + Zero,
-{
+impl<M: Clone + Zero, T: Measured<M>> From<T> for SplayTree<M, T> {
     fn from(t: T) -> SplayTree<M, T> {
         let m = t.measure();
         SplayTree::fork_measure(Leaf, t, Leaf, m)
     }
 }
 
-impl<M, T> Add for SplayTree<M, T>
-where
-    M: Clone + Zero + Add,
-    T: Measured<M>,
-{
+impl<M: Clone + Zero + Add, T: Measured<M>> Add for SplayTree<M, T> {
     type Output = SplayTree<M, T>;
     fn add(self, rhs: SplayTree<M, T>) -> SplayTree<M, T> {
         match (self, rhs) {
