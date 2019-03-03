@@ -42,6 +42,41 @@ enum SplitResult<M, T> {
     Inside(SplayTreeFork<M, T>),
 }
 
+enum IteratorItem<'a, M, T> {
+    Element(&'a T),
+    Tree(&'a SplayTree<M, T>),
+}
+
+struct SplayTreeIterator<'a, M, T> {
+    todo: Vec<IteratorItem<'a, M, T>>,
+}
+
+impl<'a, M, T> Iterator for SplayTreeIterator<'a, M, T> {
+    type Item = &'a T;
+    fn next(&mut self) -> Option<&'a T> {
+        while let Option::Some(item) = self.todo.pop() {
+            match item {
+                IteratorItem::Element(x) => return Some(x),
+                IteratorItem::Tree(Leaf) => {}
+                IteratorItem::Tree(Fork(fork)) => {
+                    self.todo.push(IteratorItem::Tree(&(*fork).right));
+                    self.todo.push(IteratorItem::Element(&(*fork).element));
+                    self.todo.push(IteratorItem::Tree(&(*fork).left));
+                }
+            }
+        }
+        return Option::None;
+    }
+}
+
+impl<'a, M, T> SplayTreeIterator<'a, M, T> {
+    fn from(tree: &'a SplayTree<M, T>) -> SplayTreeIterator<'a, M, T> {
+        SplayTreeIterator {
+            todo: vec![IteratorItem::Tree(tree)],
+        }
+    }
+}
+
 impl<M, T> SplayTree<M, T>
 where
     T: Measured<M>,
@@ -171,6 +206,10 @@ where
             }
         }
     }
+
+    fn iter(&self) -> SplayTreeIterator<M, T> {
+        SplayTreeIterator::from(self)
+    }
 }
 
 impl<M, T> Add for SplayTree<M, T>
@@ -275,6 +314,7 @@ impl Add for &StringMeasure {
         }
     }
 }
+
 impl Add for StringMeasure {
     type Output = StringMeasure;
 
