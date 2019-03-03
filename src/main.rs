@@ -1,5 +1,6 @@
 use num::Zero;
 use std::clone::Clone;
+use std::iter::FromIterator;
 use std::ops::Add;
 
 trait Measured<M> {
@@ -200,6 +201,16 @@ impl<M: Clone + Zero, T: Measured<M>> From<T> for SplayTree<M, T> {
     }
 }
 
+impl<M: Clone + Zero, T: Measured<M>> FromIterator<T> for SplayTree<M, T> {
+    fn from_iter<It: IntoIterator<Item = T>>(elements: It) -> SplayTree<M, T> {
+        let mut result = Leaf;
+        for element in elements {
+            result = SplayTree::fork(result, element, Leaf)
+        }
+        result
+    }
+}
+
 impl<M: Clone + Zero + Add, T: Measured<M>> Add for SplayTree<M, T> {
     type Output = SplayTree<M, T>;
     fn add(self, rhs: SplayTree<M, T>) -> SplayTree<M, T> {
@@ -385,16 +396,43 @@ impl Rope {
         }
         result
     }
-}
 
-impl From<String> for Rope {
-    fn from(s: String) -> Rope {
+    fn from_short_string(s: String) -> Rope {
         if s.is_empty() {
             Rope(Leaf)
         } else {
             Rope(SplayTree::from(MeasuredString::from(s)))
         }
     }
+}
+
+impl From<String> for Rope {
+    fn from(s: String) -> Rope {
+        if s.is_empty() {
+            Rope(Leaf)
+        } else if s.len() < CHUNK_SIZE {
+            Rope::from_short_string(s)
+        } else {
+            let mut parts = Vec::with_capacity(s.len() / CHUNK_SIZE + 1);
+            let mut start = 0;
+            while start < s.len() {
+                let end = char_start_before(&s, start + CHUNK_SIZE);
+                parts.push(MeasuredString::from(String::from(&s[start..end])));
+                start = end;
+            }
+            Rope(SplayTree::from_iter(parts))
+        }
+    }
+}
+
+fn char_start_before(s: &String, mut index: usize) -> usize {
+    if index > s.len() {
+        index = s.len()
+    }
+    while !s.is_char_boundary(index) {
+        index -= 1;
+    }
+    index
 }
 
 impl Add for Rope {
