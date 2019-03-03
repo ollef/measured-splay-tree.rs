@@ -397,17 +397,22 @@ impl Rope {
         }
     }
 
-    fn inner(self) -> SplayTree<StringMeasure, MeasuredString> {
-        match self {
-            Rope(tree) => tree,
+    fn to_string(&self) -> String {
+        let Rope(tree) = self;
+        let mut result = String::with_capacity(tree.measure().len);
+        for s in tree.iter() {
+            result.push_str(&s.string)
         }
+        result
     }
 }
 
 impl Add for Rope {
     type Output = Rope;
     fn add(self, rhs: Rope) -> Rope {
-        match (self.inner().unsnoc(), rhs.inner().uncons()) {
+        let Rope(left_tree) = self;
+        let Rope(right_tree) = rhs;
+        match (left_tree.unsnoc(), right_tree.uncons()) {
             (Option::None, Option::None) => Rope::new(),
             (Option::Some((left, left_str)), Option::None) => {
                 Rope(left + SplayTree::from(left_str))
@@ -429,4 +434,5 @@ impl Add for Rope {
 fn main() {
     let r = Rope::from("Hello".to_string()) + Rope::from(", world!!".to_string());
     println!("{:?}", r);
+    println!("{}", r.to_string());
 }
