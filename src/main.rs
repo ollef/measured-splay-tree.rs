@@ -69,7 +69,7 @@ impl<'a, M, T> Iterator for SplayTreeIterator<'a, M, T> {
     }
 }
 
-impl<'a, M, T> SplayTreeIterator<'a, M, T> {
+impl<'a, M, T> From<&'a SplayTree<M, T>> for SplayTreeIterator<'a, M, T> {
     fn from(tree: &'a SplayTree<M, T>) -> SplayTreeIterator<'a, M, T> {
         SplayTreeIterator {
             todo: vec![IteratorItem::Tree(tree)],
@@ -100,11 +100,6 @@ where
             Leaf => true,
             Fork(_) => false,
         }
-    }
-
-    fn from(t: T) -> SplayTree<M, T> {
-        let m = t.measure();
-        SplayTree::fork_measure(Leaf, t, Leaf, m)
     }
 
     fn uncons(self) -> Option<(T, SplayTree<M, T>)> {
@@ -205,6 +200,17 @@ where
 
     fn iter(&self) -> SplayTreeIterator<M, T> {
         SplayTreeIterator::from(self)
+    }
+}
+
+impl<M, T> From<T> for SplayTree<M, T>
+where
+    T: Measured<M>,
+    M: Clone + Zero,
+{
+    fn from(t: T) -> SplayTree<M, T> {
+        let m = t.measure();
+        SplayTree::fork_measure(Leaf, t, Leaf, m)
     }
 }
 
@@ -340,7 +346,7 @@ struct MeasuredString {
     newline_count: usize,
 }
 
-impl MeasuredString {
+impl From<String> for MeasuredString {
     fn from(s: String) -> MeasuredString {
         let char_count = s.chars().count();
         let newline_count = s.match_indices('\n').count();
@@ -389,14 +395,6 @@ impl Rope {
         Rope(Leaf)
     }
 
-    fn from(s: String) -> Rope {
-        if s.is_empty() {
-            Rope(Leaf)
-        } else {
-            Rope(SplayTree::from(MeasuredString::from(s)))
-        }
-    }
-
     fn to_string(&self) -> String {
         let Rope(tree) = self;
         let mut result = String::with_capacity(tree.measure().len);
@@ -404,6 +402,16 @@ impl Rope {
             result.push_str(&s.string)
         }
         result
+    }
+}
+
+impl From<String> for Rope {
+    fn from(s: String) -> Rope {
+        if s.is_empty() {
+            Rope(Leaf)
+        } else {
+            Rope(SplayTree::from(MeasuredString::from(s)))
+        }
     }
 }
 
