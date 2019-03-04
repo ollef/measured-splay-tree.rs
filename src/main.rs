@@ -404,6 +404,11 @@ impl Rope {
             Rope(SplayTree::from(MeasuredString::from(s)))
         }
     }
+
+    fn chars<'a>(&'a self) -> impl Iterator<Item = char> + 'a {
+        let Rope(inner) = self;
+        inner.iter().flat_map(|s| s.string.chars())
+    }
 }
 
 impl From<String> for Rope {
