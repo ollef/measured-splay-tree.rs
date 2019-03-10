@@ -351,6 +351,12 @@ impl From<String> for MeasuredString {
     }
 }
 
+impl From<&str> for MeasuredString {
+    fn from(s: &str) -> MeasuredString {
+        MeasuredString::from(String::from(s))
+    }
+}
+
 impl Measured<StringMeasure> for MeasuredString {
     fn measure(&self) -> StringMeasure {
         StringMeasure::from(self)
@@ -430,6 +436,12 @@ impl From<String> for Rope {
     }
 }
 
+impl From<&str> for Rope {
+    fn from(s: &str) -> Rope {
+        Rope::from(String::from(s))
+    }
+}
+
 fn char_start_before(s: &String, mut index: usize) -> usize {
     if index > s.len() {
         index = s.len()
@@ -465,7 +477,7 @@ impl Add for Rope {
 }
 
 fn main() {
-    let r = Rope::from("Hello".to_string()) + Rope::from(", world!!".to_string());
+    let r = Rope::from("Hello") + Rope::from(", world!!");
     println!("{:?}", r);
     println!("{}", r.to_string());
 }
