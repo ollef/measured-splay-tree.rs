@@ -500,7 +500,7 @@ impl Add for Rope {
 }
 
 fn main() {
-    let r = Rope::from("Hello") + Rope::from(", world!!");
+    let r = Rope::from("Hello") + Rope::from(", world!! ∀");
     println!("{:?}", r);
     println!("{}", r.to_string());
 }
