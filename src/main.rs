@@ -88,6 +88,7 @@ impl<M: Clone + Zero, T: Measured<M>> SplayTree<M, T> {
             measure: m,
         }))
     }
+
     fn fork(l: SplayTree<M, T>, t: T, r: SplayTree<M, T>) -> SplayTree<M, T> {
         let m = l.measure() + t.measure() + r.measure();
         SplayTree::fork_measure(l, t, r, m)
