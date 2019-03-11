@@ -447,7 +447,7 @@ impl From<String> for Rope {
         } else if s.len() < CHUNK_SIZE {
             Rope::from_short_string(s)
         } else {
-            let mut parts = Vec::with_capacity(s.len() / CHUNK_SIZE + 1);
+            let mut parts = Vec::with_capacity((s.len() + CHUNK_SIZE - 1) / CHUNK_SIZE);
             let mut start = 0;
             while start < s.len() {
                 let end = char_start_before(&s, start + CHUNK_SIZE);
