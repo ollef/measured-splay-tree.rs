@@ -451,7 +451,7 @@ impl From<String> for Rope {
             let mut start = 0;
             while start < s.len() {
                 let end = char_start_before(&s, start + CHUNK_SIZE);
-                parts.push(MeasuredString::from(String::from(&s[start..end])));
+                parts.push(MeasuredString::from(&s[start..end]));
                 start = end;
             }
             Rope(SplayTree::from_iter(parts))
