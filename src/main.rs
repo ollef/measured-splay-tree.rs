@@ -467,7 +467,7 @@ impl From<&str> for Rope {
 
 fn char_start_before(s: &String, mut index: usize) -> usize {
     if index > s.len() {
-        index = s.len()
+        return s.len();
     }
     while !s.is_char_boundary(index) {
         index -= 1;
