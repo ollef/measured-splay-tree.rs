@@ -208,11 +208,29 @@ impl<M: Clone + Zero, T: Measured<M>> From<T> for SplayTree<M, T> {
 
 impl<M: Clone + Zero, T: Measured<M>> FromIterator<T> for SplayTree<M, T> {
     fn from_iter<It: IntoIterator<Item = T>>(elements: It) -> SplayTree<M, T> {
-        let mut result = Leaf;
-        for element in elements {
-            result = SplayTree::fork(result, element, Leaf)
+        let mut it = elements.into_iter();
+        match it.next() {
+            Option::None => SplayTree::new(),
+            Option::Some(mut root) => {
+                let (lower_bound, _) = it.size_hint();
+                let mid = lower_bound / 2;
+                let mut lefts = Vec::with_capacity(mid);
+                while lefts.len() < mid {
+                    match it.next() {
+                        Option::None => break,
+                        Option::Some(t) => {
+                            let new_root = t;
+                            lefts.push(root);
+                            root = new_root;
+                        }
+                    }
+                }
+                let rights = it;
+                let left = SplayTree::from_iter(lefts);
+                let right = SplayTree::from_iter(rights);
+                SplayTree::fork(left, root, right)
+            }
         }
-        result
     }
 }
 
