@@ -76,6 +76,10 @@ impl<'a, M, T> From<&'a SplayTree<M, T>> for SplayTreeIterator<'a, M, T> {
 }
 
 impl<M: Clone + Zero, T: Measured<M>> SplayTree<M, T> {
+    fn new() -> SplayTree<M, T> {
+        Leaf
+    }
+
     fn fork_measure(l: SplayTree<M, T>, t: T, r: SplayTree<M, T>, m: M) -> SplayTree<M, T> {
         Fork(Box::new(SplayTreeFork {
             left: l,
